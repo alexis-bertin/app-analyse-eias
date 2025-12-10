@@ -1,727 +1,477 @@
-import React, { useState, useEffect } from 'react';
-import { Download, Trash2, FileJson, X, Plus } from 'lucide-react';
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EIAS Analyzer - Analyse des Événements Indésirables</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @media print {
+            body * { visibility: hidden; }
+            #print-content, #print-content * { visibility: visible; }
+            #print-content { position: absolute; left: 0; top: 0; width: 100%; }
+        }
+    </style>
+</head>
+<body class="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
+    <div id="app" class="p-6">
+        <div class="max-w-7xl mx-auto">
+            <!-- Header -->
+            <header class="mb-6 bg-white rounded-lg shadow-sm p-6">
+                <div class="flex items-center justify-between mb-4">
+                    <div class="flex-1">
+                        <input id="title-input" type="text" value="Analyse EIAS" 
+                            class="text-3xl font-bold p-2 border-2 border-transparent hover:border-slate-200 rounded-lg focus:border-blue-400 focus:outline-none transition-colors w-full"
+                            placeholder="Titre de l'analyse">
+                        <p class="text-sm text-slate-500 mt-2">
+                            Analyse des Événements Indésirables Associés aux Soins — Chronologie interactive
+                        </p>
+                    </div>
+                </div>
+                
+                <div class="flex gap-3">
+                    <button onclick="exportPDF()" class="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg shadow-sm transition-colors">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+                        </svg>
+                        Exporter PDF
+                    </button>
+                    <button onclick="exportJSON()" class="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg shadow-sm transition-colors">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                        </svg>
+                        Exporter JSON
+                    </button>
+                    <button onclick="resetData()" class="flex items-center gap-2 px-4 py-2 bg-red-50 hover:bg-red-100 text-red-700 rounded-lg transition-colors ml-auto">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                        </svg>
+                        Réinitialiser
+                    </button>
+                </div>
+            </header>
 
-export default function EIASAnalyzerApp() {
-  const [title, setTitle] = useState(() => {
-    const stored = localStorage.getItem('eias_title');
-    return stored || 'Analyse EIAS';
-  });
-  
-  const [steps, setSteps] = useState(() => {
-    const raw = localStorage.getItem('eias_steps');
-    return raw ? JSON.parse(raw) : [];
-  });
+            <main class="grid grid-cols-12 gap-6">
+                <!-- Left panel: Form -->
+                <section class="col-span-5 bg-white rounded-lg shadow-sm p-6">
+                    <h3 class="text-lg font-semibold mb-4 text-slate-800">Saisie des données</h3>
+                    
+                    <div class="space-y-4">
+                        <div>
+                            <label class="block text-sm font-medium text-slate-700 mb-1">Date et heure</label>
+                            <input type="datetime-local" id="form-time" class="w-full p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-400 focus:border-transparent">
+                        </div>
 
-  const [form, setForm] = useState({
-    time: '',
-    who: '',
-    action: '',
-    immediate: '',
-    rootCauses: '',
-    barriers: ''
-  });
+                        <div>
+                            <label class="block text-sm font-medium text-slate-700 mb-1">Acteur (anonymisé)</label>
+                            <input type="text" id="form-who" placeholder="Ex: Infirmier 1, Médecin senior" class="w-full p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-400 focus:border-transparent">
+                        </div>
 
-  const [hovered, setHovered] = useState(null);
+                        <div>
+                            <label class="block text-sm font-medium text-slate-700 mb-1">Action (fait / omission)</label>
+                            <textarea id="form-action" placeholder="Décrire l'action ou l'omission..." class="w-full p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-400 focus:border-transparent h-24 resize-none"></textarea>
+                        </div>
 
-  useEffect(() => {
-    localStorage.setItem('eias_steps', JSON.stringify(steps));
-  }, [steps]);
+                        <div>
+                            <label class="block text-sm font-medium text-slate-700 mb-1">Cause immédiate (point de rupture)</label>
+                            <input type="text" id="form-immediate" placeholder="Ex: Erreur de dosage, oubli de vérification" class="w-full p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-400 focus:border-transparent">
+                        </div>
 
-  useEffect(() => {
-    localStorage.setItem('eias_title', title);
-  }, [title]);
+                        <div>
+                            <label class="block text-sm font-medium text-slate-700 mb-1">Causes profondes <span class="text-slate-400">(séparer par ;)</span></label>
+                            <input type="text" id="form-causes" placeholder="Ex: Manque de formation; Protocole absent; Fatigue" class="w-full p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-400 focus:border-transparent">
+                        </div>
 
-  const addStep = () => {
-    if (!form.time || !form.action) return;
-    const newStep = {
-      id: Date.now().toString(),
-      time: form.time,
-      who: form.who || 'infirmier·ère/soignant·e',
-      action: form.action,
-      immediate: form.immediate,
-      rootCauses: form.rootCauses ? form.rootCauses.split(';').map(s => s.trim()).filter(Boolean) : [],
-      barriers: form.barriers ? form.barriers.split(';').map(s => s.trim()).filter(Boolean) : []
-    };
-    const merged = [...steps, newStep].sort((a, b) => new Date(a.time) - new Date(b.time));
-    setSteps(merged);
-    setForm({ time: '', who: '', action: '', immediate: '', rootCauses: '', barriers: '' });
-  };
+                        <div>
+                            <label class="block text-sm font-medium text-slate-700 mb-1">Barrières <span class="text-slate-400">(séparer par ;)</span></label>
+                            <input type="text" id="form-barriers" placeholder="Ex: Checklist; Double vérification; Alarme" class="w-full p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-400 focus:border-transparent">
+                        </div>
 
-  const removeStep = (id) => {
-    setSteps(steps.filter(s => s.id !== id));
-  };
+                        <div class="flex gap-2 pt-2">
+                            <button onclick="addStep()" class="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium transition-colors">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+                                </svg>
+                                Ajouter l'étape
+                            </button>
+                            <button onclick="clearForm()" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg transition-colors">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
 
-  const exportJSON = () => {
-    const data = { title, steps, exportedAt: new Date().toISOString() };
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${title.replace(/\s+/g, '_')}_EIAS.json`;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    URL.revokeObjectURL(url);
-  };
+                    <hr class="my-6 border-slate-200">
 
-  const exportPDF = () => {
-    const printContent = document.getElementById('pdf-content');
-    const originalContents = document.body.innerHTML;
-    
-    // Create a clean print version
-    const printWindow = document.createElement('div');
-    printWindow.innerHTML = `
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <title>${title}</title>
-        <style>
-          @page { size: A4; margin: 2cm; }
-          body { font-family: Arial, sans-serif; font-size: 11pt; line-height: 1.6; color: #000; }
-          h1 { font-size: 18pt; margin-bottom: 10px; border-bottom: 2px solid #333; padding-bottom: 10px; }
-          h2 { font-size: 14pt; margin-top: 20px; margin-bottom: 10px; color: #333; }
-          h3 { font-size: 12pt; margin-top: 15px; margin-bottom: 8px; color: #555; }
-          .header { margin-bottom: 20px; }
-          .metadata { font-size: 9pt; color: #666; margin-bottom: 20px; }
-          .step { page-break-inside: avoid; margin-bottom: 20px; padding: 15px; border: 1px solid #ddd; border-radius: 4px; background: #f9f9f9; }
-          .step-header { font-weight: bold; margin-bottom: 8px; color: #2563eb; }
-          .step-detail { margin: 5px 0; padding-left: 10px; }
-          .label { font-weight: 600; color: #444; }
-          .causes { color: #b45309; margin-top: 8px; }
-          .barriers { color: #065f46; margin-top: 8px; }
-          .summary { margin-top: 30px; page-break-before: always; }
-          .summary-table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-          .summary-table th, .summary-table td { border: 1px solid #ddd; padding: 8px; text-align: left; }
-          .summary-table th { background-color: #f0f0f0; font-weight: bold; }
-          ul { margin: 5px 0; padding-left: 20px; }
-          li { margin: 3px 0; }
-        </style>
-      </head>
-      <body>
-        <div class="header">
-          <h1>${title}</h1>
-          <div class="metadata">
-            Date d'export : ${new Date().toLocaleDateString('fr-FR', { 
-              year: 'numeric', 
-              month: 'long', 
-              day: 'numeric',
-              hour: '2-digit',
-              minute: '2-digit'
-            })}<br>
-            Nombre d'étapes analysées : ${steps.length}
-          </div>
+                    <h4 class="text-lg font-semibold mb-3 text-slate-800">Étapes enregistrées (<span id="step-count">0</span>)</h4>
+                    <div id="steps-list" class="space-y-2 max-h-96 overflow-y-auto pr-2">
+                        <p class="text-sm text-slate-500 italic py-4 text-center">Aucune étape saisie pour le moment</p>
+                    </div>
+                </section>
+
+                <!-- Right panel: Timeline -->
+                <section class="col-span-7 bg-white rounded-lg shadow-sm p-6">
+                    <h3 class="text-lg font-semibold mb-4 text-slate-800">Frise chronologique interactive</h3>
+                    <div id="timeline-container"></div>
+                </section>
+            </main>
+
+            <footer class="mt-8 p-4 bg-white rounded-lg shadow-sm text-center">
+                <p class="text-sm text-slate-600">Application EIAS Analyzer — Analyse des Événements Indésirables Associés aux Soins</p>
+                <p class="text-xs text-slate-400 mt-1">Prête pour hébergement GitHub • Export PDF et JSON • Stockage local navigateur</p>
+            </footer>
         </div>
+    </div>
 
-        <h2>Chronologie détaillée</h2>
-        ${steps.map((s, idx) => `
-          <div class="step">
-            <div class="step-header">
-              Étape ${idx + 1} — ${new Date(s.time).toLocaleString('fr-FR', {
-                year: 'numeric',
-                month: 'long',
-                day: 'numeric',
-                hour: '2-digit',
-                minute: '2-digit'
-              })}
-            </div>
-            <div class="step-detail">
-              <span class="label">Acteur :</span> ${s.who}
-            </div>
-            <div class="step-detail">
-              <span class="label">Action :</span> ${s.action}
-            </div>
-            ${s.immediate ? `
-              <div class="step-detail">
-                <span class="label">Cause immédiate (point de rupture) :</span> ${s.immediate}
-              </div>
-            ` : ''}
-            ${s.rootCauses.length > 0 ? `
-              <div class="step-detail causes">
-                <span class="label">Causes profondes :</span>
-                <ul>
-                  ${s.rootCauses.map(c => `<li>${c}</li>`).join('')}
-                </ul>
-              </div>
-            ` : ''}
-            ${s.barriers.length > 0 ? `
-              <div class="step-detail barriers">
-                <span class="label">Barrières :</span>
-                <ul>
-                  ${s.barriers.map(b => `<li>${b}</li>`).join('')}
-                </ul>
-              </div>
-            ` : ''}
-          </div>
-        `).join('')}
+    <script>
+        // Data management
+        let steps = JSON.parse(localStorage.getItem('eias_steps') || '[]');
+        let currentHover = null;
 
-        <div class="summary">
-          <h2>Synthèse des causes profondes</h2>
-          <table class="summary-table">
-            <thead>
-              <tr>
-                <th>Cause profonde</th>
-                <th>Nombre d'occurrences</th>
-                <th>Étapes concernées</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${(() => {
-                const causesMap = {};
-                steps.forEach((s, idx) => {
-                  s.rootCauses.forEach(c => {
+        // Initialize
+        document.addEventListener('DOMContentLoaded', () => {
+            const savedTitle = localStorage.getItem('eias_title');
+            if (savedTitle) document.getElementById('title-input').value = savedTitle;
+            
+            document.getElementById('title-input').addEventListener('input', (e) => {
+                localStorage.setItem('eias_title', e.target.value);
+            });
+            
+            render();
+        });
+
+        function addStep() {
+            const time = document.getElementById('form-time').value;
+            const who = document.getElementById('form-who').value || 'infirmier·ère/soignant·e';
+            const action = document.getElementById('form-action').value;
+            const immediate = document.getElementById('form-immediate').value;
+            const rootCauses = document.getElementById('form-causes').value;
+            const barriers = document.getElementById('form-barriers').value;
+
+            if (!time || !action) {
+                alert('Veuillez remplir au minimum la date/heure et l\'action');
+                return;
+            }
+
+            const newStep = {
+                id: Date.now().toString(),
+                time,
+                who,
+                action,
+                immediate,
+                rootCauses: rootCauses ? rootCauses.split(';').map(s => s.trim()).filter(Boolean) : [],
+                barriers: barriers ? barriers.split(';').map(s => s.trim()).filter(Boolean) : []
+            };
+
+            steps.push(newStep);
+            steps.sort((a, b) => new Date(a.time) - new Date(b.time));
+            saveSteps();
+            clearForm();
+            render();
+        }
+
+        function removeStep(id) {
+            steps = steps.filter(s => s.id !== id);
+            saveSteps();
+            render();
+        }
+
+        function clearForm() {
+            document.getElementById('form-time').value = '';
+            document.getElementById('form-who').value = '';
+            document.getElementById('form-action').value = '';
+            document.getElementById('form-immediate').value = '';
+            document.getElementById('form-causes').value = '';
+            document.getElementById('form-barriers').value = '';
+        }
+
+        function saveSteps() {
+            localStorage.setItem('eias_steps', JSON.stringify(steps));
+        }
+
+        function resetData() {
+            if (confirm('Êtes-vous sûr de vouloir réinitialiser toutes les données ?')) {
+                localStorage.removeItem('eias_steps');
+                localStorage.removeItem('eias_title');
+                steps = [];
+                document.getElementById('title-input').value = 'Analyse EIAS';
+                render();
+            }
+        }
+
+        function exportJSON() {
+            const title = document.getElementById('title-input').value;
+            const data = { title, steps, exportedAt: new Date().toISOString() };
+            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `${title.replace(/\s+/g, '_')}_EIAS.json`;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            URL.revokeObjectURL(url);
+        }
+
+        function exportPDF() {
+            const title = document.getElementById('title-input').value;
+            
+            const causesMap = {};
+            const barriersMap = {};
+            steps.forEach((s, idx) => {
+                s.rootCauses.forEach(c => {
                     if (!causesMap[c]) causesMap[c] = [];
                     causesMap[c].push(idx + 1);
-                  });
                 });
-                return Object.entries(causesMap).map(([cause, indices]) => `
-                  <tr>
-                    <td>${cause}</td>
-                    <td>${indices.length}</td>
-                    <td>${indices.join(', ')}</td>
-                  </tr>
-                `).join('');
-              })()}
-            </tbody>
-          </table>
-
-          <h2>Synthèse des barrières</h2>
-          <table class="summary-table">
-            <thead>
-              <tr>
-                <th>Barrière</th>
-                <th>Nombre d'occurrences</th>
-                <th>Étapes concernées</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${(() => {
-                const barriersMap = {};
-                steps.forEach((s, idx) => {
-                  s.barriers.forEach(b => {
+                s.barriers.forEach(b => {
                     if (!barriersMap[b]) barriersMap[b] = [];
                     barriersMap[b].push(idx + 1);
-                  });
                 });
-                return Object.entries(barriersMap).map(([barrier, indices]) => `
-                  <tr>
-                    <td>${barrier}</td>
-                    <td>${indices.length}</td>
-                    <td>${indices.join(', ')}</td>
-                  </tr>
-                `).join('');
-              })()}
-            </tbody>
-          </table>
-        </div>
-      </body>
-      </html>
-    `;
-    
-    const printFrame = document.createElement('iframe');
-    printFrame.style.position = 'absolute';
-    printFrame.style.width = '0';
-    printFrame.style.height = '0';
-    printFrame.style.border = 'none';
-    document.body.appendChild(printFrame);
-    
-    const doc = printFrame.contentWindow.document;
-    doc.open();
-    doc.write(printWindow.innerHTML);
-    doc.close();
-    
-    setTimeout(() => {
-      printFrame.contentWindow.print();
-      setTimeout(() => document.body.removeChild(printFrame), 1000);
-    }, 500);
-  };
+            });
 
-  const resetData = () => {
-    if (confirm('Êtes-vous sûr de vouloir réinitialiser toutes les données ?')) {
-      localStorage.removeItem('eias_steps');
-      localStorage.removeItem('eias_title');
-      setSteps([]);
-      setTitle('Analyse EIAS');
-    }
-  };
-
-  // Timeline calculations
-  const width = 900;
-  const height = 300;
-  const times = steps.map(s => new Date(s.time).getTime());
-  const minT = times.length ? Math.min(...times) : Date.now();
-  const maxT = times.length ? Math.max(...times) : minT + 1;
-  const padding = 40;
-
-  const xFor = (iso) => {
-    const t = new Date(iso).getTime();
-    if (maxT === minT) return padding + (width - 2 * padding) / 2;
-    const frac = (t - minT) / (maxT - minT);
-    return padding + frac * (width - 2 * padding);
-  };
-
-  const causesMap = {};
-  const barriersMap = {};
-  steps.forEach(s => {
-    s.rootCauses.forEach(c => {
-      if (!c) return;
-      causesMap[c] = causesMap[c] || [];
-      causesMap[c].push(s.id);
-    });
-    s.barriers.forEach(b => {
-      if (!b) return;
-      barriersMap[b] = barriersMap[b] || [];
-      barriersMap[b].push(s.id);
-    });
-  });
-
-  return (
-    <div className="min-h-screen p-6 bg-gradient-to-br from-slate-50 to-slate-100">
-      <div className="max-w-7xl mx-auto">
-        <header className="mb-6 bg-white rounded-lg shadow-sm p-6">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex-1">
-              <input
-                value={title}
-                onChange={e => setTitle(e.target.value)}
-                className="text-3xl font-bold p-2 border-2 border-transparent hover:border-slate-200 rounded-lg focus:border-blue-400 focus:outline-none transition-colors w-full"
-                placeholder="Titre de l'analyse"
-              />
-              <p className="text-sm text-slate-500 mt-2">
-                Analyse des Événements Indésirables Associés aux Soins — Chronologie interactive
-              </p>
-            </div>
-          </div>
-          
-          <div className="flex gap-3">
-            <button
-              onClick={exportPDF}
-              className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg shadow-sm transition-colors"
-            >
-              <Download size={18} />
-              Exporter PDF
-            </button>
-            <button
-              onClick={exportJSON}
-              className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg shadow-sm transition-colors"
-            >
-              <FileJson size={18} />
-              Exporter JSON
-            </button>
-            <button
-              onClick={resetData}
-              className="flex items-center gap-2 px-4 py-2 bg-red-50 hover:bg-red-100 text-red-700 rounded-lg transition-colors ml-auto"
-            >
-              <Trash2 size={18} />
-              Réinitialiser
-            </button>
-          </div>
-        </header>
-
-        <main className="grid grid-cols-12 gap-6">
-          {/* Left panel: Form & List */}
-          <section className="col-span-5 bg-white rounded-lg shadow-sm p-6">
-            <h3 className="text-lg font-semibold mb-4 text-slate-800">
-              Saisie des données
-            </h3>
-            
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">
-                  Date et heure
-                </label>
-                <input
-                  type="datetime-local"
-                  value={form.time}
-                  onChange={e => setForm({ ...form, time: e.target.value })}
-                  className="w-full p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-400 focus:border-transparent"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">
-                  Acteur (anonymisé)
-                </label>
-                <input
-                  value={form.who}
-                  onChange={e => setForm({ ...form, who: e.target.value })}
-                  className="w-full p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-400 focus:border-transparent"
-                  placeholder="Ex: Infirmier 1, Médecin senior"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">
-                  Action (fait / omission)
-                </label>
-                <textarea
-                  value={form.action}
-                  onChange={e => setForm({ ...form, action: e.target.value })}
-                  className="w-full p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-400 focus:border-transparent h-24 resize-none"
-                  placeholder="Décrire l'action ou l'omission..."
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">
-                  Cause immédiate (point de rupture)
-                </label>
-                <input
-                  value={form.immediate}
-                  onChange={e => setForm({ ...form, immediate: e.target.value })}
-                  className="w-full p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-400 focus:border-transparent"
-                  placeholder="Ex: Erreur de dosage, oubli de vérification"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">
-                  Causes profondes <span className="text-slate-400">(séparer par ;)</span>
-                </label>
-                <input
-                  value={form.rootCauses}
-                  onChange={e => setForm({ ...form, rootCauses: e.target.value })}
-                  className="w-full p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-400 focus:border-transparent"
-                  placeholder="Ex: Manque de formation; Protocole absent; Fatigue"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">
-                  Barrières <span className="text-slate-400">(séparer par ;)</span>
-                </label>
-                <input
-                  value={form.barriers}
-                  onChange={e => setForm({ ...form, barriers: e.target.value })}
-                  className="w-full p-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-400 focus:border-transparent"
-                  placeholder="Ex: Checklist; Double vérification; Alarme"
-                />
-              </div>
-
-              <div className="flex gap-2 pt-2">
-                <button
-                  onClick={addStep}
-                  disabled={!form.time || !form.action}
-                  className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 disabled:bg-slate-300 disabled:cursor-not-allowed text-white rounded-lg font-medium transition-colors"
-                >
-                  <Plus size={18} />
-                  Ajouter l'étape
-                </button>
-                <button
-                  onClick={() => setForm({ time: '', who: '', action: '', immediate: '', rootCauses: '', barriers: '' })}
-                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg transition-colors"
-                >
-                  <X size={18} />
-                </button>
-              </div>
-            </div>
-
-            <hr className="my-6 border-slate-200" />
-
-            <h4 className="text-lg font-semibold mb-3 text-slate-800">
-              Étapes enregistrées ({steps.length})
-            </h4>
-            <div className="space-y-2 max-h-96 overflow-y-auto pr-2">
-              {steps.length === 0 ? (
-                <p className="text-sm text-slate-500 italic py-4 text-center">
-                  Aucune étape saisie pour le moment
-                </p>
-              ) : (
-                steps.map((s, idx) => (
-                  <div
-                    key={s.id}
-                    className="p-3 border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors"
-                  >
-                    <div className="flex justify-between items-start gap-3">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-blue-100 text-blue-700 text-xs font-semibold">
-                            {idx + 1}
-                          </span>
-                          <div className="text-sm font-semibold text-slate-900">
-                            {new Date(s.time).toLocaleString('fr-FR')}
-                          </div>
+            const printWindow = window.open('', '', 'width=800,height=600');
+            printWindow.document.write(`
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <title>${title}</title>
+                    <style>
+                        @page { size: A4; margin: 2cm; }
+                        body { font-family: Arial, sans-serif; font-size: 11pt; line-height: 1.6; color: #000; }
+                        h1 { font-size: 18pt; margin-bottom: 10px; border-bottom: 2px solid #333; padding-bottom: 10px; }
+                        h2 { font-size: 14pt; margin-top: 20px; margin-bottom: 10px; color: #333; }
+                        .header { margin-bottom: 20px; }
+                        .metadata { font-size: 9pt; color: #666; margin-bottom: 20px; }
+                        .step { page-break-inside: avoid; margin-bottom: 20px; padding: 15px; border: 1px solid #ddd; border-radius: 4px; background: #f9f9f9; }
+                        .step-header { font-weight: bold; margin-bottom: 8px; color: #2563eb; }
+                        .step-detail { margin: 5px 0; padding-left: 10px; }
+                        .label { font-weight: 600; color: #444; }
+                        .causes { color: #b45309; margin-top: 8px; }
+                        .barriers { color: #065f46; margin-top: 8px; }
+                        .summary { margin-top: 30px; page-break-before: always; }
+                        .summary-table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+                        .summary-table th, .summary-table td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+                        .summary-table th { background-color: #f0f0f0; font-weight: bold; }
+                        ul { margin: 5px 0; padding-left: 20px; }
+                        li { margin: 3px 0; }
+                    </style>
+                </head>
+                <body>
+                    <div class="header">
+                        <h1>${title}</h1>
+                        <div class="metadata">
+                            Date d'export : ${new Date().toLocaleDateString('fr-FR', { 
+                                year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit'
+                            })}<br>
+                            Nombre d'étapes analysées : ${steps.length}
                         </div>
-                        <div className="text-sm text-slate-700 ml-8">
-                          <span className="font-medium">{s.who}</span> — {s.action}
-                        </div>
-                        {s.immediate && (
-                          <div className="text-xs text-amber-700 mt-2 ml-8 bg-amber-50 p-2 rounded">
-                            <span className="font-semibold">Rupture:</span> {s.immediate}
-                          </div>
-                        )}
-                        {s.rootCauses.length > 0 && (
-                          <div className="text-xs text-slate-600 mt-1 ml-8">
-                            <span className="font-semibold">Causes:</span> {s.rootCauses.join(', ')}
-                          </div>
-                        )}
-                        {s.barriers.length > 0 && (
-                          <div className="text-xs text-slate-600 mt-1 ml-8">
-                            <span className="font-semibold">Barrières:</span> {s.barriers.join(', ')}
-                          </div>
-                        )}
-                      </div>
-                      <button
-                        onClick={() => removeStep(s.id)}
-                        className="text-red-600 hover:text-red-700 hover:bg-red-50 p-1 rounded transition-colors"
-                        title="Supprimer cette étape"
-                      >
-                        <X size={16} />
-                      </button>
                     </div>
-                  </div>
-                ))
-              )}
-            </div>
-          </section>
 
-          {/* Right panel: Timeline */}
-          <section className="col-span-7 bg-white rounded-lg shadow-sm p-6">
-            <h3 className="text-lg font-semibold mb-4 text-slate-800">
-              Frise chronologique interactive
-            </h3>
+                    <h2>Chronologie détaillée</h2>
+                    ${steps.map((s, idx) => `
+                        <div class="step">
+                            <div class="step-header">
+                                Étape ${idx + 1} — ${new Date(s.time).toLocaleString('fr-FR', {
+                                    year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit'
+                                })}
+                            </div>
+                            <div class="step-detail"><span class="label">Acteur :</span> ${s.who}</div>
+                            <div class="step-detail"><span class="label">Action :</span> ${s.action}</div>
+                            ${s.immediate ? `<div class="step-detail"><span class="label">Cause immédiate :</span> ${s.immediate}</div>` : ''}
+                            ${s.rootCauses.length > 0 ? `
+                                <div class="step-detail causes">
+                                    <span class="label">Causes profondes :</span>
+                                    <ul>${s.rootCauses.map(c => `<li>${c}</li>`).join('')}</ul>
+                                </div>
+                            ` : ''}
+                            ${s.barriers.length > 0 ? `
+                                <div class="step-detail barriers">
+                                    <span class="label">Barrières :</span>
+                                    <ul>${s.barriers.map(b => `<li>${b}</li>`).join('')}</ul>
+                                </div>
+                            ` : ''}
+                        </div>
+                    `).join('')}
+
+                    <div class="summary">
+                        <h2>Synthèse des causes profondes</h2>
+                        <table class="summary-table">
+                            <thead>
+                                <tr>
+                                    <th>Cause profonde</th>
+                                    <th>Occurrences</th>
+                                    <th>Étapes concernées</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${Object.entries(causesMap).map(([cause, indices]) => `
+                                    <tr>
+                                        <td>${cause}</td>
+                                        <td>${indices.length}</td>
+                                        <td>${indices.join(', ')}</td>
+                                    </tr>
+                                `).join('')}
+                            </tbody>
+                        </table>
+
+                        <h2>Synthèse des barrières</h2>
+                        <table class="summary-table">
+                            <thead>
+                                <tr>
+                                    <th>Barrière</th>
+                                    <th>Occurrences</th>
+                                    <th>Étapes concernées</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${Object.entries(barriersMap).map(([barrier, indices]) => `
+                                    <tr>
+                                        <td>${barrier}</td>
+                                        <td>${indices.length}</td>
+                                        <td>${indices.join(', ')}</td>
+                                    </tr>
+                                `).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+                </body>
+                </html>
+            `);
             
-            {steps.length === 0 ? (
-              <div className="border-2 border-dashed border-slate-300 rounded-lg p-12 text-center">
-                <p className="text-slate-500 text-lg mb-2">Aucune donnée à visualiser</p>
-                <p className="text-slate-400 text-sm">
-                  Ajoutez des étapes via le formulaire pour voir la chronologie
+            printWindow.document.close();
+            setTimeout(() => {
+                printWindow.print();
+            }, 500);
+        }
+
+        function render() {
+            renderStepsList();
+            renderTimeline();
+        }
+
+        function renderStepsList() {
+            const container = document.getElementById('steps-list');
+            document.getElementById('step-count').textContent = steps.length;
+
+            if (steps.length === 0) {
+                container.innerHTML = '<p class="text-sm text-slate-500 italic py-4 text-center">Aucune étape saisie pour le moment</p>';
+                return;
+            }
+
+            container.innerHTML = steps.map((s, idx) => `
+                <div class="p-3 border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors">
+                    <div class="flex justify-between items-start gap-3">
+                        <div class="flex-1">
+                            <div class="flex items-center gap-2 mb-1">
+                                <span class="inline-flex items-center justify-center w-6 h-6 rounded-full bg-blue-100 text-blue-700 text-xs font-semibold">${idx + 1}</span>
+                                <div class="text-sm font-semibold text-slate-900">${new Date(s.time).toLocaleString('fr-FR')}</div>
+                            </div>
+                            <div class="text-sm text-slate-700 ml-8">
+                                <span class="font-medium">${s.who}</span> — ${s.action}
+                            </div>
+                            ${s.immediate ? `
+                                <div class="text-xs text-amber-700 mt-2 ml-8 bg-amber-50 p-2 rounded">
+                                    <span class="font-semibold">Rupture:</span> ${s.immediate}
+                                </div>
+                            ` : ''}
+                            ${s.rootCauses.length > 0 ? `
+                                <div class="text-xs text-slate-600 mt-1 ml-8">
+                                    <span class="font-semibold">Causes:</span> ${s.rootCauses.join(', ')}
+                                </div>
+                            ` : ''}
+                            ${s.barriers.length > 0 ? `
+                                <div class="text-xs text-slate-600 mt-1 ml-8">
+                                    <span class="font-semibold">Barrières:</span> ${s.barriers.join(', ')}
+                                </div>
+                            ` : ''}
+                        </div>
+                        <button onclick="removeStep('${s.id}')" class="text-red-600 hover:text-red-700 hover:bg-red-50 p-1 rounded transition-colors" title="Supprimer">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function renderTimeline() {
+            const container = document.getElementById('timeline-container');
+
+            if (steps.length === 0) {
+                container.innerHTML = `
+                    <div class="border-2 border-dashed border-slate-300 rounded-lg p-12 text-center">
+                        <p class="text-slate-500 text-lg mb-2">Aucune donnée à visualiser</p>
+                        <p class="text-slate-400 text-sm">Ajoutez des étapes via le formulaire pour voir la chronologie</p>
+                    </div>
+                `;
+                return;
+            }
+
+            const width = 900;
+            const height = 300;
+            const padding = 40;
+            
+            const times = steps.map(s => new Date(s.time).getTime());
+            const minT = Math.min(...times);
+            const maxT = Math.max(...times);
+            
+            const xFor = (iso) => {
+                const t = new Date(iso).getTime();
+                if (maxT === minT) return padding + (width - 2 * padding) / 2;
+                const frac = (t - minT) / (maxT - minT);
+                return padding + frac * (width - 2 * padding);
+            };
+
+            const causesMap = {};
+            const barriersMap = {};
+            steps.forEach(s => {
+                s.rootCauses.forEach(c => {
+                    if (!causesMap[c]) causesMap[c] = [];
+                    causesMap[c].push(s.id);
+                });
+                s.barriers.forEach(b => {
+                    if (!barriersMap[b]) barriersMap[b] = [];
+                    barriersMap[b].push(s.id);
+                });
+            });
+
+            let svg = `<div class="border border-slate-200 rounded-lg p-4 bg-slate-50">
+                <svg width="${width}" height="${height}" class="block mx-auto">
+                    <line x1="${padding}" x2="${width - padding}" y1="${height / 2}" y2="${height / 2}" stroke="#94a3b8" stroke-width="3"/>`;
+
+            steps.forEach((s, idx) => {
+                const x = xFor(s.time);
+                const y = height / 2;
+                
+                svg += `
+                    <g>
+                        <circle cx="${x}" cy="${y}" r="18" fill="#3b82f6" stroke="#2563eb" stroke-width="2" class="cursor-pointer" onmouseover="showTooltip('${s.id}')" onmouseout="hideTooltip()"/>
+                        <text x="${x}" y="${y}" text-anchor="middle" dominant-baseline="middle" font-size="12" font-weight="bold" fill="white">${idx + 1}</text>
+                        <text x="${x}" y="${y + 40}" text-anchor="middle" font-size="11" fill="#475569">${new Date(s.time).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</text>
+                    </g>
+                `;
+            });
+
+            svg += `</svg></div>`;
+
+            svg += `<div class="mt-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
+                <p class="text-sm text-blue-900">
+                    <span class="font-semibold">💡 Astuce :</span> Survolez les cercles numérotés pour voir les détails de chaque étape.
                 </p>
-              </div>
-            ) : (
-              <>
-                <div className="border border-slate-200 rounded-lg p-4 bg-slate-50">
-                  <svg width={width} height={height} className="block mx-auto">
-                    {/* Timeline baseline */}
-                    <line
-                      x1={padding}
-                      x2={width - padding}
-                      y1={height / 2}
-                      y2={height / 2}
-                      stroke="#94a3b8"
-                      strokeWidth={3}
-                    />
+            </div>`;
 
-                    {/* Event circles */}
-                    {steps.map((s, idx) => {
-                      const x = xFor(s.time);
-                      const y = height / 2;
-                      const isHovered = hovered && hovered.type === 'step' && hovered.id === s.id;
+            container.innerHTML = svg;
+        }
 
-                      return (
-                        <g key={s.id}>
-                          <circle
-                            cx={x}
-                            cy={y}
-                            r={18}
-                            fill={isHovered ? '#f97316' : '#3b82f6'}
-                            stroke={isHovered ? '#ea580c' : '#2563eb'}
-                            strokeWidth={2}
-                            onMouseEnter={() => setHovered({ type: 'step', id: s.id })}
-                            onMouseLeave={() => setHovered(null)}
-                            className="cursor-pointer transition-all"
-                          />
-                          <text
-                            x={x}
-                            y={y}
-                            textAnchor="middle"
-                            dominantBaseline="middle"
-                            fontSize={12}
-                            fontWeight="bold"
-                            fill="white"
-                          >
-                            {idx + 1}
-                          </text>
-                          <text
-                            x={x}
-                            y={y + 40}
-                            textAnchor="middle"
-                            fontSize={11}
-                            fill="#475569"
-                          >
-                            {new Date(s.time).toLocaleTimeString('fr-FR', {
-                              hour: '2-digit',
-                              minute: '2-digit'
-                            })}
-                          </text>
+        function showTooltip(id) {
+            // Could add tooltip functionality here
+        }
 
-                          {isHovered && (
-                            <g>
-                              <rect
-                                x={x < width / 2 ? x + 25 : x - 285}
-                                y={y - 90}
-                                width={260}
-                                height={160}
-                                rx={8}
-                                fill="white"
-                                stroke="#e2e8f0"
-                                strokeWidth={2}
-                                filter="drop-shadow(0 4px 6px rgba(0,0,0,0.1))"
-                              />
-                              <foreignObject
-                                x={x < width / 2 ? x + 30 : x - 280}
-                                y={y - 85}
-                                width={250}
-                                height={150}
-                              >
-                                <div className="text-xs p-2">
-                                  <div className="font-bold text-sm text-blue-700 mb-1">
-                                    {s.who}
-                                  </div>
-                                  <div className="text-slate-700 mb-2">{s.action}</div>
-                                  {s.immediate && (
-                                    <div className="text-amber-700 mb-1">
-                                      <span className="font-semibold">Rupture:</span> {s.immediate}
-                                    </div>
-                                  )}
-                                  {s.rootCauses.length > 0 && (
-                                    <div className="text-slate-600 text-xs mb-1">
-                                      <span className="font-semibold">Causes:</span> {s.rootCauses.join(', ')}
-                                    </div>
-                                  )}
-                                  {s.barriers.length > 0 && (
-                                    <div className="text-slate-600 text-xs">
-                                      <span className="font-semibold">Barrières:</span> {s.barriers.join(', ')}
-                                    </div>
-                                  )}
-                                </div>
-                              </foreignObject>
-                            </g>
-                          )}
-                        </g>
-                      );
-                    })}
-
-                    {/* Cause/Barrier connections */}
-                    {hovered && hovered.type === 'cause' && (() => {
-                      const ids = causesMap[hovered.id] || [];
-                      return ids.map(id => {
-                        const s = steps.find(x => x.id === id);
-                        if (!s) return null;
-                        const x = xFor(s.time);
-                        const y = height / 2;
-                        return (
-                          <line
-                            key={id}
-                            x1={x}
-                            y1={y - 20}
-                            x2={width - 140}
-                            y2={50}
-                            stroke="#f59e0b"
-                            strokeWidth={2}
-                            strokeDasharray="4 3"
-                          />
-                        );
-                      });
-                    })()}
-
-                    {hovered && hovered.type === 'barrier' && (() => {
-                      const ids = barriersMap[hovered.id] || [];
-                      return ids.map(id => {
-                        const s = steps.find(x => x.id === id);
-                        if (!s) return null;
-                        const x = xFor(s.time);
-                        const y = height / 2;
-                        return (
-                          <line
-                            key={id}
-                            x1={x}
-                            y1={y + 20}
-                            x2={width - 140}
-                            y2={height - 50}
-                            stroke="#06b6d4"
-                            strokeWidth={2}
-                            strokeDasharray="3 3"
-                          />
-                        );
-                      });
-                    })()}
-
-                    {/* Side panels */}
-                    <foreignObject x={width - 280} y={10} width={270} height={height - 20}>
-                      <div className="text-xs space-y-3 p-2">
-                        <div>
-                          <div className="font-semibold text-sm text-amber-700 mb-2">
-                            Causes profondes
-                          </div>
-                          <div className="space-y-1 max-h-28 overflow-auto">
-                            {Object.keys(causesMap).length === 0 ? (
-                              <div className="text-slate-400 italic">Aucune cause</div>
-                            ) : (
-                              Object.keys(causesMap).map(c => (
-                                <div
-                                  key={c}
-                                  onMouseEnter={() => setHovered({ type: 'cause', id: c })}
-                                  onMouseLeave={() => setHovered(null)}
-                                  className={`p-2 rounded cursor-pointer transition-colors ${
-                                    hovered && hovered.type === 'cause' && hovered.id === c
-                                      ? 'bg-amber-100 border border-amber-300'
-                                      : 'hover:bg-amber-50'
-                                  }`}
-                                >
-                                  <div className="font-medium text-slate-700">{c}</div>
-                                  <div className="text-slate-500">{causesMap[c].length} étape(s)</div>
-                                </div>
-                              ))
-                            )}
-                          </div>
-                        </div>
-
-                        <div>
-                          <div className="font-semibold text-sm text-cyan-700 mb-2">
-                            Barrières
-                          </div>
-                          <div className="space-y-1 max-h-28 overflow-auto">
-                            {Object.keys(barriersMap).length === 0 ? (
-                              <div className="text-slate-400 italic">Aucune barrière</div>
-                            ) : (
-                              Object.keys(barriersMap).map(b => (
-                                <div
-                                  key={b}
-                                  onMouseEnter={() => setHovered({ type: 'barrier', id: b })}
-                                  onMouseLeave={() => setHovered(null)}
-                                  className={`p-2 rounded cursor-pointer transition-colors ${
-                                    hovered && hovered.type === 'barrier' && hovered.id === b
-                                      ? 'bg-cyan-100 border border-cyan-300'
-                                      : 'hover:bg-cyan-50'
-                                  }`}
-                                >
-                                  <div className="font-medium text-slate-700">{b}</div>
-                                  <div className="text-slate-500">{barriersMap[b].length} étape(s)</div>
-                                </div>
-                              ))
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    </foreignObject>
-                  </svg>
-                </div>
-
-                <div className="mt-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
-                  <p className="text-sm text-blue-900">
-                    <span className="font-semibold">💡 Astuce :</span> Survolez les cercles numérotés pour voir les détails de chaque étape. 
-                    Survolez une cause ou une barrière dans le panneau latéral pour visualiser les connexions avec les étapes concernées.
-                  </p>
-                </div>
-              </>
-            )}
-          </section>
-        </main>
-
-        <footer className="mt-8 p-4 bg-white rounded-lg shadow-sm text-center">
-          <p className="text-sm text-slate-600">
-            Application EIAS Analyzer — Analyse des Événements Indésirables Associés aux Soins
-          </p>
-          <p className="text-xs text-slate-400 mt-1">
-            Prête pour hébergement GitHub • Export PDF et JSON • Stockage local navigateur
-          </p>
-        </footer>
-      </div>
-
-      {/* Hidden content for PDF export */}
-      <div id="pdf-content" style={{ display: 'none' }}>
-        {/* This div is used by the PDF export function */}
-      </div>
-    </div>
-  );
-}
+        function hideTooltip() {
+            // Could add tooltip functionality here
+        }
+    </script>
+</body>
+</html>
